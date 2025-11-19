@@ -1,4 +1,4 @@
-// controllers/authController.js
+
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -6,6 +6,7 @@ const asyncHandler = require("express-async-handler");
 const { logaudit } = require("../utils/auditLogger");
 const sendEmail = require("../utils/sendEmail");
 const crypto = require("crypto");
+const axios=require("axios");
 
 // helper: generate access token (JWT)
 const generateAccessToken = (user) => {
@@ -21,7 +22,6 @@ const generateAccessToken = (user) => {
   );
 };
 
-// helper: generate refresh token (random string), store hashed in DB
 const createAndStoreRefreshToken = async (user, res) => {
   const refreshToken = crypto.randomBytes(64).toString("hex");
   const hashed = await bcrypt.hash(refreshToken, 12);
@@ -39,9 +39,17 @@ const createAndStoreRefreshToken = async (user, res) => {
 
 // ------------------ REGISTER ------------------
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, department } = req.body;
+  const { name, email, password, department,recaptachaToken } = req.body;
+
   if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password required" });
 
+
+  if(!recaptachaToken) return res.status(400).json({message:"please comaplete the recaptcha"});
+  const secretKey=process.env.SECRET_KEY;
+  const response=await axios.post(`https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptachaToken}`);
+  if(!response.data.success){
+    return res.status(400).json({message:"recaptcha verification failed"});
+  }
   // password validation - enforce minimal complexity
   if (typeof password !== "string" || password.length < 8) {
     return res.status(400).json({ message: "Password must be at least 8 characters" });
