@@ -1,17 +1,26 @@
-const router = require("express").Router();
-const { protect } = require("../middleware/auth");
-const { allowRoles } = require("../middleware/roles");
+const express = require("express");
+const router = express.Router();
+const protect = require("../middleware/protect");
+const allowRoles = require("../middleware/rbac");
+const macProtect = require("../middleware/mac");
+
+router.get("/profile", protect, (req, res) => {
+  res.json({ message: "This is your profile", user: req.user });
+});
+
 
 router.get("/admin", protect, allowRoles("Admin"), (req, res) => {
-    res.json({ message: "Admin dashboard" });
+  res.json({ message: "Welcome to Admin Panel" });
 });
 
-router.get("/employee", protect, allowRoles("Employee", "Admin"), (req, res) => {
-    res.json({ message: "Employee panel" });
+
+router.get("/hr-finance", protect, allowRoles("HR_Manager", "Finance_Manager","Admin"), (req, res) => {
+  res.json({ message: "HR & Finance secret data" });
 });
 
-router.get("/public", protect, allowRoles("User", "Employee", "Admin"), (req, res) => {
-    res.json({ message: "Public Resource" });
+
+router.get("/confidential", protect, macProtect("Confidential"), (req, res) => {
+  res.json({ message: "You have access to CONFIDENTIAL data!" });
 });
 
 module.exports = router;
