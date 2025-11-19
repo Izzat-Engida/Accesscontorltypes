@@ -4,7 +4,7 @@ const userSchema=new mongoose.Schema({
     name:String,
     email:{type:String,unique:true},
     password:String,
-    role:{type:String,default:"Employee"},
+    role:{type:String,enum:["Admin","Employee","User"],default:"User"},
     department:String,
     clearanceLevel:{type:String,default:"Public"},
     failedAttempts:{type:Number,default:0},

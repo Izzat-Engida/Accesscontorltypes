@@ -13,7 +13,7 @@ app.use(cookieParser());
 
 app.use(express.urlencoded({extended:false}))
 app.use("/auth",require("./routes/auth"));
-
+app.use("/access",require("./routes/access"))
 app.listen(port,()=>{
     console.log(`server is running at post ${port}`)
 })
