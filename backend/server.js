@@ -20,6 +20,7 @@ app.use("/api/access",require("./routes/access"))
 app.use('/api/test',require("./routes/test"))
 app.use("/api/leave",require("./routes/leave"))
 app.use("/api/audit",require("./routes/audit"));
+app.use("/api/admin",require("./routes/adminRoutes"))
 app.listen(port,()=>{
     console.log(`server is running at post ${port}`)
 })
