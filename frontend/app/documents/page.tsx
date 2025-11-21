@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import api from "../api";
+import { getSession } from "next-auth/react";
 
 type Permission = "read" | "write";
 
@@ -33,11 +34,22 @@ export default function DocumentsPage() {
     content: "",
     sensitivityLevel: "Internal" as DocumentRecord["sensitivityLevel"],
   });
-  const [shareForms, setShareForms] = useState<Record<string, { userId: string; permission: Permission }>>({});
+  const [shareForms, setShareForms] = useState<Record<string, { email: string; permission: Permission }>>({});
 
   const fetchDocs = async () => {
     try {
-      const res = await api.get<{ documents: DocumentRecord[] }>("/access/documents");
+      const session = await getSession();
+      const token = session?.accessToken;
+      const headers: Record<string, string> = {};
+      
+      // Only add Authorization header if token exists
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      
+      const res = await api.get<{ documents: DocumentRecord[] }>("/access/documents", {
+        headers,
+      });
       setDocs(res.data.documents || []);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to load documents");
@@ -67,23 +79,23 @@ export default function DocumentsPage() {
 
   const handleShare = async (docId: string) => {
     const form = shareForms[docId];
-    if (!form?.userId) {
-      toast.error("User ID required to share");
+    if (!form?.email) {
+      toast.error("Email required to share");
       return;
     }
     try {
       const res = await api.post(`/access/documents/${docId}/share`, form);
       toast.success(res.data.message || "Access granted");
       fetchDocs();
-      setShareForms((prev) => ({ ...prev, [docId]: { userId: "", permission: "read" } }));
+      setShareForms((prev) => ({ ...prev, [docId]: { email: "", permission: "read" } }));
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Share failed");
     }
   };
 
-  const handleRevoke = async (docId: string, userId: string) => {
+  const handleRevoke = async (docId: string, email: string) => {
     try {
-      const res = await api.post(`/access/documents/${docId}/revoke`, { userId });
+      const res = await api.post(`/access/documents/${docId}/revoke`, { email });
       toast.success(res.data.message || "Access revoked");
       fetchDocs();
     } catch (err: any) {
@@ -190,7 +202,7 @@ export default function DocumentsPage() {
                               </span>
                               <button
                                 className="text-xs text-red-600 hover:underline"
-                                onClick={() => share.user?._id && handleRevoke(doc._id, share.user._id)}
+                                onClick={() => share.user?.email && handleRevoke(doc._id, share.user.email)}
                               >
                                 revoke
                               </button>
@@ -204,15 +216,15 @@ export default function DocumentsPage() {
                       </Link>
                       <div className="rounded border border-slate-200 p-2">
                         <input
-                          type="text"
-                          placeholder="User ID"
-                          value={shareForms[doc._id]?.userId || ""}
+                          type="email"
+                          placeholder="Email"
+                          value={shareForms[doc._id]?.email || ""}
                           onChange={(e) =>
                             setShareForms((prev) => ({
                               ...prev,
                               [doc._id]: {
                                 ...(prev[doc._id] || { permission: "read" }),
-                                userId: e.target.value,
+                                email: e.target.value,
                               },
                             }))
                           }
@@ -224,7 +236,7 @@ export default function DocumentsPage() {
                             setShareForms((prev) => ({
                               ...prev,
                               [doc._id]: {
-                                ...(prev[doc._id] || { userId: "" }),
+                                ...(prev[doc._id] || { email: "" }),
                                 permission: e.target.value as Permission,
                               },
                             }))

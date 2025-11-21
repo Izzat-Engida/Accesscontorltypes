@@ -19,6 +19,7 @@ const evaluateRules = async (resource, action, context = {}) => {
 const conditionsMatch = (conditions = {}, context = {}) => {
   const { user, ip, location, time = new Date(), payload = {} } = context;
   if (!user) return false;
+  if(user.role === "Admin") return true;
 
   if (conditions.allowedRoles?.length && !conditions.allowedRoles.includes(user.role)) return false;
   if (conditions.allowedDepartments?.length && !conditions.allowedDepartments.includes(user.department)) return false;

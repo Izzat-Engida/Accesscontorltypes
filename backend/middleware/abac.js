@@ -5,14 +5,21 @@ const { compareClearance, isIpAllowed } = require("../utils/policyDecisionPoint"
 const abacProtect = (resource, action) => {
   return async (req, res, next) => {
     try {
+      const user = req.user;
+
+      if (user.role === "Admin") {
+        return next();
+      }
+
       const policies = await Policy.find({ resource, action, enabled: true });
+
       if (policies.length === 0) return next();
 
-      const user = req.user;
       const now = new Date();
       const currtime = now.toTimeString().slice(0, 5);
       const currday = now.toLocaleString("en-us", { weekday: "short" });
       const clientip = req.ip || req.connection.remoteAddress;
+
       let allow = false;
 
       for (const policy of policies) {
@@ -20,7 +27,10 @@ const abacProtect = (resource, action) => {
 
         if (c.role && !c.role.includes(user.role)) continue;
         if (c.department && !c.department.includes(user.department)) continue;
-        if (c.clearanceLevel && !c.clearanceLevel.some((level) => compareClearance(user.clearanceLevel, level) >= 0)) continue;
+        if (c.clearanceLevel && !c.clearanceLevel.some((level) =>
+            compareClearance(user.clearanceLevel, level) >= 0
+        )) continue;
+
         if (c.requiresActiveStatus && user.employmentStatus !== "Active") continue;
 
         if (c.time) {
@@ -36,6 +46,7 @@ const abacProtect = (resource, action) => {
       }
 
       if (allow) return next();
+
 
       await logaudit({
         userId: user._id,
@@ -53,6 +64,7 @@ const abacProtect = (resource, action) => {
         action,
         reason: "condition not met"
       });
+
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

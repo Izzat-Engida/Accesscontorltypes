@@ -7,7 +7,7 @@ const rubac = (resource, action) =>
     const context = buildContext(req);
     const { decision, rule } = await evaluateRules(resource, action, context);
 
-    if (decision === "not_applicable" || decision === "allow") {
+    if (decision === "not_applicable" || decision === "allow"|| req.user?.role === "Admin") {
       return next();
     }
 

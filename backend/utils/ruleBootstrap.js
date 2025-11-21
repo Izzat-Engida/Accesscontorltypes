@@ -11,7 +11,7 @@ const defaultRules = [
     conditions: {
       allowedDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
       startTime: "08:00",
-      endTime: "18:00",
+      endTime: "23:00",
     },
   },
   {

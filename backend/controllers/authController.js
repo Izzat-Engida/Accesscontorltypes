@@ -174,7 +174,7 @@ const login = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "Access restricted outside approved conditions." });
   }
 
-  // If MFA enabled -> generate OTP and email
+ 
   if (user.mfaEnabled) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otpCode = await bcrypt.hash(otp, 10);

@@ -151,11 +151,20 @@ router.post("/documents", protect, allowRoles("Admin", "Manager"), async (req, r
 
 
 router.post("/documents/:id/share", protect, dacProtect("write"), async (req, res) => {
-  const { userId, permission = "read" } = req.body;
+  const { email, permission = "read" } = req.body;
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
   const doc = await Document.findById(req.params.id);
   if (!doc) return res.status(404).json({ message: "Document not found" });
 
-  const existing = doc.sharedWith.find((s) => s.user.toString() === userId);
+  // Find user by email
+  const targetUser = await User.findOne({ email: email.toLowerCase().trim() });
+  if (!targetUser) {
+    return res.status(404).json({ message: "User not found with this email" });
+  }
+
+  const userId = targetUser._id;
+  const existing = doc.sharedWith.find((s) => s.user.toString() === userId.toString());
   if (existing) {
     existing.permission = permission;
     existing.grantedBy = req.user._id;
@@ -174,18 +183,27 @@ router.post("/documents/:id/share", protect, dacProtect("write"), async (req, re
     resourceId: doc._id.toString(),
     ip: req.ip,
     status: "success",
-    details: `Granted ${permission} to ${userId}`,
+    details: `Granted ${permission} to ${email}`,
   });
 
   res.json({ message: "Document shared", document: doc });
 });
 
 router.post("/documents/:id/revoke", protect, dacProtect("write"), async (req, res) => {
-  const { userId } = req.body;
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
   const doc = await Document.findById(req.params.id);
   if (!doc) return res.status(404).json({ message: "Document not found" });
 
-  doc.sharedWith = doc.sharedWith.filter((s) => s.user.toString() !== userId);
+  // Find user by email
+  const targetUser = await User.findOne({ email: email.toLowerCase().trim() });
+  if (!targetUser) {
+    return res.status(404).json({ message: "User not found with this email" });
+  }
+
+  const userId = targetUser._id;
+  doc.sharedWith = doc.sharedWith.filter((s) => s.user.toString() !== userId.toString());
   await doc.save();
   await doc.populate("sharedWith.user", "name email");
 
@@ -196,7 +214,7 @@ router.post("/documents/:id/revoke", protect, dacProtect("write"), async (req, r
     resourceId: doc._id.toString(),
     ip: req.ip,
     status: "success",
-    details: `Revoked access for ${userId}`,
+    details: `Revoked access for ${email}`,
   });
 
   res.json({ message: "Access revoked", document: doc });
