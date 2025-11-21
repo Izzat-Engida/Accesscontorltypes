@@ -5,6 +5,8 @@ const protect = require("../middleware/protect");
 const abacProtect = require("../middleware/abac");
 const allowRoles = require("../middleware/rbac");
 const macProtect = require("../middleware/mac");
+const rubac = require("../middleware/rubac");
+const { logaudit } = require("../utils/auditLogger");
 
 // hr ppl
 router.post(
@@ -12,8 +14,20 @@ router.post(
   protect,
   allowRoles("HR_Manager"),
   macProtect("Internal"),
+  rubac("leave_request", "approve"),
   abacProtect("leave_request", "approve"),
-  (req, res) => {
+  async (req, res) => {
+    await logaudit({
+      userId: req.user._id,
+      action: "Leave approval",
+      resource: "LeaveRequest",
+      resourceId: req.body.requestId || null,
+      ip: req.ip,
+      status: "success",
+      details: `Days approved: ${req.body.days || "N/A"}`,
+      category: "permission",
+      severity: "low",
+    });
     res.json({ message: "Leave approved! Policy passed." });
   }
 );

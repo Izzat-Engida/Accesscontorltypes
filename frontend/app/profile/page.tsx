@@ -1,101 +1,266 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { FormEvent, useEffect, useState } from "react";
+import { toast } from "react-toastify";
+import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import api from "../api";
 
-type User = {
-  id: string;
+interface Profile {
+  _id: string;
   name: string;
   email: string;
   role: string;
   department: string;
   clearanceLevel: string;
-};
+  mfaEnabled: boolean;
+  employmentStatus?: string;
+  emailVerified?: boolean;
+}
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [name, setName] = useState("");
-  const [department, setDepartment] = useState("");
+  const [profileForm, setProfileForm] = useState({ name: "", department: "" });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.get("http://localhost:5000/api/auth/me", { withCredentials: true });
-        setUser(res.data.user);
-        setName(res.data.user.name);
-        setDepartment(res.data.user.department);
-      } catch (err) {
-        console.error(err);
-        alert("Failed to fetch profile. Please login again.");
-      }
-      setLoading(false);
-    };
-    fetchUser();
-  }, []);
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setUpdating(true);
+  const fetchProfile = async () => {
     try {
-      const res = await axios.put("http://localhost:5000/api/auth/me", {
-        name,
-        department
-      }, { withCredentials: true });
-
-      alert(res.data.message || "Profile updated successfully");
+      const res = await api.get("/auth/me");
       setUser(res.data.user);
-    } catch (err) {
-      const message = axios.isAxiosError(err) ? err.response?.data?.message : (err instanceof Error ? err.message : String(err));
-      alert("Update failed: " + message);
+      setProfileForm({
+        name: res.data.user.name,
+        department: res.data.user.department,
+      });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to fetch profile");
+    } finally {
+      setLoading(false);
     }
-    setUpdating(false);
   };
 
-  if (loading) return <div className="text-center mt-10">Loading...</div>;
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
-  if (!user) return <div className="text-center mt-10">No user data</div>;
+  const handleProfileUpdate = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      setBusy(true);
+      const res = await api.put("/auth/me", profileForm);
+      toast.success(res.data.message || "Profile updated");
+      fetchProfile();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      setBusy(true);
+      const res = await api.post("/auth/change-password", passwordForm);
+      toast.success(res.data.message || "Password changed");
+      setPasswordForm({ currentPassword: "", newPassword: "" });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Password change failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleEnableMfa = async () => {
+    try {
+      setBusy(true);
+      const res = await api.post("/auth/enable-mfa");
+      toast.success(res.data.message || "MFA enabled");
+      fetchProfile();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Unable to enable MFA");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!user) return;
+    try {
+      setBusy(true);
+      const res = await api.post("/auth/resend-verification", { email: user.email });
+      toast.success(res.data.message || "Verification email sent");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Unable to send verification email");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.post("/auth/logout");
+      await signOut({ redirect: false });
+      toast.info("Logged out");
+      setUser(null);
+      router.push("/login");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Logout failed");
+    }
+  };
+
+  if (loading) {
+    return <div className="p-6">Loading profile...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-slate-600">No profile data. Please login.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 border rounded">
-      <h1 className="text-xl font-bold mb-4">Profile</h1>
-      <form onSubmit={handleUpdate} className="space-y-3">
-        <div>
-          <label className="block text-sm font-medium">Name:</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="border p-2 w-full"
-          />
+    <div className="grid gap-6 p-6 md:grid-cols-2">
+      <section className="rounded-xl bg-white p-6 shadow">
+        <h2 className="text-xl font-semibold text-slate-900">Identity & Status</h2>
+        <dl className="mt-4 space-y-2 text-sm text-slate-600">
+          <div>
+            <dt className="font-semibold text-slate-800">Name</dt>
+            <dd>{user.name}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-slate-800">Email</dt>
+            <dd>
+              {user.email}
+              {!user.emailVerified && (
+                <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Unverified</span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-slate-800">Role • Department</dt>
+            <dd>
+              {user.role} • {user.department}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-slate-800">Clearance</dt>
+            <dd>{user.clearanceLevel}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-slate-800">Employment</dt>
+            <dd>{user.employmentStatus || "Active"}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-slate-800">MFA</dt>
+            <dd>{user.mfaEnabled ? "Enabled" : "Disabled"}</dd>
+          </div>
+        </dl>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {!user.emailVerified && (
+            <button
+              onClick={handleResendVerification}
+              className="rounded bg-amber-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              disabled={busy}
+            >
+              Resend verification
+            </button>
+          )}
+          {!user.mfaEnabled && (
+            <button
+              onClick={handleEnableMfa}
+              className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              disabled={busy}
+            >
+              Enable MFA
+            </button>
+          )}
+          <button
+            onClick={handleLogout}
+            className="rounded bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-800"
+          >
+            Logout
+          </button>
         </div>
-        <div>
-          <label htmlFor="department" className="block text-sm font-medium">Department:</label>
-          <select id="department" value={department} onChange={(e) => setDepartment(e.target.value)} className="border p-2 w-full" aria-label="Department">
-            <option value="HR">HR</option>
-            <option value="Finance">Finance</option>
-            <option value="IT">IT</option>
-            <option value="Sales">Sales</option>
-            <option value="General">General</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Email:</label>
-          <input value={user.email} disabled className="border p-2 w-full bg-gray-100"/>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Role:</label>
-          <input value={user.role} disabled className="border p-2 w-full bg-gray-100"/>
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Clearance Level:</label>
-          <input value={user.clearanceLevel} disabled className="border p-2 w-full bg-gray-100"/>
-        </div>
-        <button type="submit" disabled={updating} className="bg-blue-600 text-white px-4 py-2 rounded">
-          {updating ? "Updating..." : "Update Profile"}
-        </button>
-      </form>
+      </section>
+
+      <section className="space-y-6">
+        <form onSubmit={handleProfileUpdate} className="rounded-xl bg-white p-6 shadow">
+          <h3 className="text-lg font-semibold text-slate-900">Update profile</h3>
+          <div className="mt-4 space-y-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Name
+              <input
+                value={profileForm.name}
+                onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                className="mt-1 w-full rounded border border-slate-300 p-2"
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Department
+              <select
+                value={profileForm.department}
+                onChange={(e) => setProfileForm({ ...profileForm, department: e.target.value })}
+                className="mt-1 w-full rounded border border-slate-300 p-2"
+              >
+                {["HR", "Finance", "IT", "Sales", "General"].map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-4 w-full rounded bg-blue-600 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            Save changes
+          </button>
+        </form>
+
+        <form onSubmit={handlePasswordChange} className="rounded-xl bg-white p-6 shadow">
+          <h3 className="text-lg font-semibold text-slate-900">Change password</h3>
+          <div className="mt-4 space-y-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Current password
+              <input
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                className="mt-1 w-full rounded border border-slate-300 p-2"
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              New password
+              <input
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                className="mt-1 w-full rounded border border-slate-300 p-2"
+                required
+              />
+            </label>
+            <p className="text-xs text-slate-500">
+              Must be at least 10 characters and include upper, lower, number and special character.
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-4 w-full rounded bg-slate-900 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            Update password
+          </button>
+        </form>
+      </section>
     </div>
   );
 }

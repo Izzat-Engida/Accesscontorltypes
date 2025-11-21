@@ -29,15 +29,20 @@ const userSchema = new mongoose.Schema({
 
     accountLocked: { type: Boolean, default: false },
 
-    // FIXED field name
+    
     lockUntil: { type: Date },
 
-    // MFA / OTP fields
+    
     otpCode: { type: String, default: null },
     otpExpires: { type: Date, default: null },
     otpVerified: { type: Boolean, default: false },
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationTokenHash: { type: String, default: null },
+    emailVerificationExpires: { type: Date, default: null },
 
     mfaEnabled: { type: Boolean, default: false },
+    mfaSecret: { type: String, default: null },
+    
     refreshTokenHash: { type: String, default: null },
     resetPasswordTokenHash: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },

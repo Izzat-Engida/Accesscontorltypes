@@ -1,5 +1,6 @@
 const Policy = require("../models/Policy");
 const { logaudit } = require("../utils/auditLogger");
+const { compareClearance, isIpAllowed } = require("../utils/policyDecisionPoint");
 
 const abacProtect = (resource, action) => {
   return async (req, res, next) => {
@@ -19,7 +20,7 @@ const abacProtect = (resource, action) => {
 
         if (c.role && !c.role.includes(user.role)) continue;
         if (c.department && !c.department.includes(user.department)) continue;
-        if (c.clearanceLevel && !c.clearanceLevel.includes(user.clearanceLevel)) continue;
+        if (c.clearanceLevel && !c.clearanceLevel.some((level) => compareClearance(user.clearanceLevel, level) >= 0)) continue;
         if (c.requiresActiveStatus && user.employmentStatus !== "Active") continue;
 
         if (c.time) {
@@ -28,10 +29,7 @@ const abacProtect = (resource, action) => {
           if (!intime || !inday) continue;
         }
 
-        if (c.allowedIps) {
-          const ipAllowed = c.allowedIps.some(net => isIPInRange(clientip, net));
-          if (!ipAllowed) continue;
-        }
+        if (c.allowedIps && !isIpAllowed(clientip, c.allowedIps)) continue;
 
         allow = true;
         break;
@@ -60,12 +58,5 @@ const abacProtect = (resource, action) => {
     }
   };
 };
-
-function isIPInRange(ip, net) {
-  if (!net.includes("/")) return ip === net;
-  const [range, mask] = net.split("/");
-  if (mask !== "24") return false;
-  return ip.startsWith(range.split(".").slice(0, 3).join("."));
-}
 
 module.exports = abacProtect;

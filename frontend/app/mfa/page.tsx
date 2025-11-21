@@ -1,56 +1,73 @@
-'use client'
+"use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import axios from "axios";
+import { toast } from "react-toastify";
+import { signIn } from "next-auth/react";
+import api from "../api";
 
 export default function MFAPage() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const params = useSearchParams();
-  const userId = params.get("userId"); // comes from login redirect
+  const userId = params.get("userId");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!userId) {
+      toast.error("Missing user identifier.");
+      return;
+    }
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/mfa-verify", {
-        userId,
-        otp
-      }, { withCredentials: true });
-
-      alert(res.data.message || "OTP verified successfully!");
-      router.push("/profile"); 
-    } catch (err: unknown) {
-      const message = axios.isAxiosError(err) ? err.response?.data?.message : (err instanceof Error ? err.message : String(err));
-      alert("OTP verification failed: " + message);
+      const res = await api.post("/auth/verify-otp", { userId, otp });
+      toast.success(res.data.message || "OTP verified successfully!");
+      const nextAuthResult = await signIn("credentials", {
+        redirect: false,
+        userJson: JSON.stringify(res.data.user),
+      });
+      if (nextAuthResult?.error) {
+        toast.error(nextAuthResult.error || "Unable to start session");
+        return;
+      }
+      router.push("/profile");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "OTP verification failed");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 border rounded">
-      <h1 className="text-xl font-bold mb-4">MFA Verification</h1>
-      <form onSubmit={handleSubmit} className="space-y-3">
+    <div className="mx-auto mt-12 max-w-lg rounded-3xl border border-slate-200 bg-white/80 p-8 shadow-xl backdrop-blur">
+      <p className="text-xs font-semibold uppercase text-slate-500">Step 2 of 2</p>
+      <h1 className="mt-2 text-3xl font-semibold text-slate-900">Multi-factor verification</h1>
+      <p className="mt-2 text-sm text-slate-600">
+        Enter the one-time password that was emailed to you. Tokens expire in 5 minutes.
+      </p>
+      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
         <input
           type="text"
           value={otp}
           onChange={(e) => setOtp(e.target.value)}
-          placeholder="Enter OTP"
+          placeholder="6-digit OTP"
+          maxLength={6}
           required
-          className="border p-2 w-full"
+          className="w-full rounded-2xl border border-slate-200 bg-white/70 p-4 text-center text-2xl tracking-[0.6em] focus:border-slate-900 focus:outline-none"
         />
         <button
           type="submit"
           disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="w-full rounded-2xl bg-slate-900 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
         >
           {loading ? "Verifying..." : "Verify OTP"}
         </button>
       </form>
+      <p className="mt-6 text-center text-sm text-slate-500">
+        Didnt receive the code? Request another from the login page after 60 seconds.
+      </p>
     </div>
   );
 }

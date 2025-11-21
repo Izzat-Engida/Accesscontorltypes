@@ -1,10 +1,10 @@
-
-const allowRoles=(...roles)=>{
-    return(req,res,next)=>{
-        if(!req.user || !roles.includes(req.user.role)){
-            return res.status(403).json({message:"access denied: not correct role"})
-        }
-        next();
+const allowRoles = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied: not correct role" });
     }
-}
-module.exports=allowRoles
+    next();
+  };
+};
+
+module.exports = allowRoles;

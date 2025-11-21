@@ -7,6 +7,50 @@ const { logaudit } = require("../utils/auditLogger");
 const sendEmail = require("../utils/sendEmail");
 const crypto = require("crypto");
 const axios=require("axios");
+const { evaluateRules } = require("../utils/ruleEngine");
+
+const PASSWORD_POLICY = {
+  minLength: 10,
+  regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/,
+  message: "Password must be at least 10 characters and include upper and lower case letters, a number, and a special character."
+};
+
+const isPasswordStrong = (password = "") =>
+  typeof password === "string" && password.length >= PASSWORD_POLICY.minLength && PASSWORD_POLICY.regex.test(password);
+
+const formatSafeUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  department: user.department,
+  clearanceLevel: user.clearanceLevel,
+  mfaEnabled: user.mfaEnabled,
+  emailVerified: user.emailVerified,
+});
+
+const issueVerificationEmail = async (user, ip) => {
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  user.emailVerificationTokenHash = await bcrypt.hash(verificationToken, 12);
+  user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await user.save();
+
+  const link = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&id=${user._id}`;
+  await sendEmail(
+    user.email,
+    "Verify your account",
+    `Welcome to the system!\nPlease verify your email using this link: ${link}\nThis link expires in 24 hours.`
+  );
+  await logaudit({
+    userId: user._id,
+    action: "Email verification sent",
+    resource: "User",
+    resourceId: user._id.toString(),
+    ip,
+    status: "success",
+    severity: "low",
+  });
+};
 
 // helper: generate access token (JWT)
 const generateAccessToken = (user) => {
@@ -50,9 +94,8 @@ const register = asyncHandler(async (req, res) => {
   if(!response.data.success){
     return res.status(400).json({message:"recaptcha verification failed"});
   }
-  // password validation - enforce minimal complexity
-  if (typeof password !== "string" || password.length < 8) {
-    return res.status(400).json({ message: "Password must be at least 8 characters" });
+  if (!isPasswordStrong(password)) {
+    return res.status(400).json({ message: PASSWORD_POLICY.message });
   }
 
   const existing = await User.findOne({ email: email.toLowerCase() });
@@ -67,10 +110,11 @@ const register = asyncHandler(async (req, res) => {
     clearanceLevel: "Internal",
   });
 
+  await issueVerificationEmail(user, req.ip);
   await logaudit({ userId: user._id, action: "User registered", ip: req.ip, status: "success" });
 
   res.status(201).json({
-    message: "User registered successfully",
+    message: "User registered successfully. Check your email to verify the account.",
     user: { id: user._id, name: user.name, email: user.email, role: user.role, department: user.department },
   });
 });
@@ -104,6 +148,32 @@ const login = asyncHandler(async (req, res) => {
   user.accountLocked = false;
   user.lockUntil = null;
 
+  if (!user.emailVerified) {
+    await issueVerificationEmail(user, req.ip);
+    return res.status(403).json({ message: "Email not verified. Verification link sent." });
+  }
+
+  const { decision: accessDecision, rule: blockingRule } = await evaluateRules("system_access", "login", {
+    user,
+    ip: req.ip,
+    location: req.headers["x-client-location"],
+    time: new Date(),
+  });
+
+  if (accessDecision === "deny") {
+    await logaudit({
+      userId: user._id,
+      action: "System access denied by rule",
+      resource: "System",
+      resourceId: null,
+      ip: req.ip,
+      status: "failed",
+      severity: "high",
+      details: `Rule ${blockingRule?.name} blocked login`,
+    });
+    return res.status(403).json({ message: "Access restricted outside approved conditions." });
+  }
+
   // If MFA enabled -> generate OTP and email
   if (user.mfaEnabled) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -133,7 +203,7 @@ const login = asyncHandler(async (req, res) => {
 
   await logaudit({ userId: user._id, action: "Login success", ip: req.ip, userAgent: req.get("User-Agent"), status: "success" });
 
-  res.json({ message: "Login successful", user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+  res.json({ message: "Login successful", user: formatSafeUser(user) });
 });
 
 // ------------------ VERIFY OTP (for MFA) ------------------
@@ -170,7 +240,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
   await logaudit({ userId: user._id, action: "OTP verified & tokens issued", ip: req.ip, status: "success" });
 
-  res.json({ message: "Login successful", user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+  res.json({ message: "Login successful", user: formatSafeUser(user) });
 });
 
 // ------------------ ENABLE MFA (user must be authenticated) ------------------
@@ -213,7 +283,7 @@ const refreshToken = asyncHandler(async (req, res) => {
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || "15m" }
   );
 
-  // rotate refresh token
+  
   await createAndStoreRefreshToken(matchedUser, res);
 
   res.cookie("token", accessToken, {
@@ -283,7 +353,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   const ok = await bcrypt.compare(token, user.resetPasswordTokenHash);
   if (!ok) return res.status(400).json({ message: "Invalid token" });
 
-  // update password
+
   user.password = await bcrypt.hash(newPassword, 12);
   user.resetPasswordTokenHash = null;
   user.resetPasswordExpires = null;
@@ -292,6 +362,94 @@ const resetPassword = asyncHandler(async (req, res) => {
   await logaudit({ userId: user._id, action: "Password reset", ip: req.ip, status: "success" });
 
   res.json({ message: "Password reset successful" });
+});
+
+const verifyEmail = asyncHandler(async (req, res) => {
+  const { userId, token } = req.body;
+  if (!userId || !token) return res.status(400).json({ message: "Missing fields" });
+
+  const user = await User.findById(userId);
+  if (!user || !user.emailVerificationTokenHash) {
+    return res.status(400).json({ message: "Invalid or expired token" });
+  }
+  if (user.emailVerificationExpires && user.emailVerificationExpires < new Date()) {
+    return res.status(400).json({ message: "Verification token expired" });
+  }
+
+  const match = await bcrypt.compare(token, user.emailVerificationTokenHash);
+  if (!match) return res.status(400).json({ message: "Invalid verification token" });
+
+  user.emailVerified = true;
+  user.emailVerificationTokenHash = null;
+  user.emailVerificationExpires = null;
+  await user.save();
+
+  await logaudit({
+    userId: user._id,
+    action: "Email verified",
+    resource: "User",
+    resourceId: user._id.toString(),
+    ip: req.ip,
+    status: "success",
+    severity: "low",
+  });
+
+  res.json({ message: "Email verified successfully" });
+});
+
+const resendVerification = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (!user) return res.status(200).json({ message: "If the account exists, a verification email was sent" });
+  if (user.emailVerified) return res.status(200).json({ message: "Email already verified" });
+
+  await issueVerificationEmail(user, req.ip);
+  res.json({ message: "Verification email sent" });
+});
+
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: "Current and new passwords are required" });
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  const match = await bcrypt.compare(currentPassword, user.password);
+  if (!match) {
+    await logaudit({
+      userId: user._id,
+      action: "Password change failed",
+      resource: "User",
+      resourceId: user._id.toString(),
+      ip: req.ip,
+      status: "failed",
+      severity: "medium",
+      details: "Invalid current password",
+    });
+    return res.status(400).json({ message: "Current password is incorrect" });
+  }
+
+  if (!isPasswordStrong(newPassword)) {
+    return res.status(400).json({ message: PASSWORD_POLICY.message });
+  }
+
+  user.password = await bcrypt.hash(newPassword, 12);
+  await user.save();
+  await logaudit({
+    userId: user._id,
+    action: "Password changed",
+    resource: "User",
+    resourceId: user._id.toString(),
+    ip: req.ip,
+    status: "success",
+    severity: "low",
+  });
+
+  res.json({ message: "Password updated successfully" });
 });
 
 module.exports = {
@@ -303,4 +461,7 @@ module.exports = {
   logout,
   forgotPassword,
   resetPassword,
+  verifyEmail,
+  resendVerification,
+  changePassword,
 };

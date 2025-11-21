@@ -8,6 +8,16 @@ const auditLogSchema = new mongoose.Schema({
     resourceId: String,
     ip: String,
     userAgent: String,
+    category: {
+        type: String,
+        enum: ["user", "system", "security", "permission"],
+        default: "user"
+    },
+    severity: {
+        type: String,
+        enum: ["info", "low", "medium", "high", "critical"],
+        default: "info"
+    },
     status: {
         type: String,
         enum: ["success", "failed"],
@@ -16,11 +26,15 @@ const auditLogSchema = new mongoose.Schema({
     details: String
 }, { timestamps: true });
 
-
 auditLogSchema.pre("save", function(next) {
     if (this.details) {
-        const cipher = crypto.createCipher("aes-256-cbc", process.env.JWT_SECRET);
-        this.details = cipher.update(this.details, "utf8", "hex") + cipher.final("hex");
+        const keySource = process.env.LOG_ENCRYPTION_KEY || process.env.JWT_SECRET || "log-secret";
+        const key = crypto.createHash("sha256").update(keySource).digest();
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+        const encrypted = Buffer.concat([cipher.update(this.details, "utf8"), cipher.final()]);
+        const tag = cipher.getAuthTag();
+        this.details = `${iv.toString("hex")}:${tag.toString("hex")}:${encrypted.toString("hex")}`;
     }
     next();
 });

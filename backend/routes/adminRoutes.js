@@ -1,16 +1,18 @@
-const express=require('express');
-const router=express.Router();
+const express = require("express");
+const router = express.Router();
+const admin = require("../controllers/adminController");
+const { protect, authorize } = require("../middleware/authMiddleware");
 
-const{getAllUsers,deleteUser,getUser,updateUserAdmin}=require('../controllers/adminController');
+router.use(protect, authorize("Admin"));
 
-const protect=require('../middleware/authMiddleware');
-const rbac=require('../middleware/rbac');
-router.use(protect)
+router.get("/users", admin.getAllUsers);
+router.get("/users/:id", admin.getUserById);
+router.put("/users/:id", admin.updateUserAdmin);
+router.delete("/users/:id", admin.deleteUser);
 
-router.use(rbac(['Admin']))
-router.get('/users',getAllUsers);
-router.get('/user/:id',getUser);
-router.delete('/user/:id',deleteUser);
-router.put('/user/:id',updateUserAdmin);
+router.patch("/users/:id/enable-mfa", admin.enableMfa);
+router.patch("/users/:id/disable-mfa", admin.disableMfa);
+router.patch("/users/:id/role", admin.updateRole);
+router.patch("/users/:id/attributes", admin.updateAttributes);
 
-module.exports=router;
+module.exports = router;

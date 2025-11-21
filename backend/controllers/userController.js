@@ -3,14 +3,13 @@ const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcrypt");
 const { logaudit } = require("../utils/auditLogger");
 
-// ------------------ Get all users (Admin only) ------------------
 const getAllUsers = asyncHandler(async (req, res) => {
   const users = await User.find().select("-password -otpCode -refreshTokenHash");
   await logaudit({ userId: req.user._id, action: "Get all users", status: "success", ip: req.ip });
   res.json(users);
 });
 
-// ------------------ Get single user by ID ------------------
+
 const getUserById = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id).select("-password -otpCode -refreshTokenHash");
   if (!user) return res.status(404).json({ message: "User not found" });
@@ -36,15 +35,15 @@ const updateUser = asyncHandler(async (req, res) => {
   res.json({ message: "User updated", user });
 });
 
-// ------------------ Lock / Unlock account ------------------
+
 const toggleLockUser = asyncHandler(async (req, res) => {
-  const { lock } = req.body; // true = lock, false = unlock
+  const { lock } = req.body;
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found" });
 
   user.accountLocked = lock;
   if (lock) {
-    user.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 min default lock
+    user.lockUntil = new Date(Date.now() + 30 * 60 * 1000); 
   } else {
     user.lockUntil = null;
     user.failedAttempts = 0;
@@ -55,7 +54,7 @@ const toggleLockUser = asyncHandler(async (req, res) => {
   res.json({ message: `User ${lock ? "locked" : "unlocked"}` });
 });
 
-// ------------------ Force password reset ------------------
+
 const forceResetPassword = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found" });
@@ -66,10 +65,9 @@ const forceResetPassword = asyncHandler(async (req, res) => {
 
   await logaudit({ userId: req.user._id, action: `Force password reset for ${user._id}`, status: "success", ip: req.ip });
 
-  res.json({ message: "Password reset successfully", tempPassword }); // Admin can send temp password to user via email
+  res.json({ message: "Password reset successfully", tempPassword });
 });
 
-// ------------------ Delete user ------------------
 const deleteUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found" });
