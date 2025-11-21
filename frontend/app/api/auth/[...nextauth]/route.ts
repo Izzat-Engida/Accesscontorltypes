@@ -60,16 +60,29 @@ const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
+  secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.user = user;
+        const { accessToken, refreshToken, ...safeUser } = user as typeof user & {
+          accessToken?: string;
+          refreshToken?: string;
+        };
+        token.user = safeUser;
+        if (accessToken) token.accessToken = accessToken;
+        if (refreshToken) token.refreshToken = refreshToken;
       }
       return token;
     },
     async session({ session, token }) {
       if (token.user) {
         session.user = token.user as typeof session.user;
+      }
+      if (token.accessToken) {
+        session.accessToken = token.accessToken as string;
+      }
+      if (token.refreshToken) {
+        session.refreshToken = token.refreshToken as string;
       }
       return session;
     },

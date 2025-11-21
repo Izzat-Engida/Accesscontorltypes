@@ -10,7 +10,11 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("ACCESS_TOKEN_SECRET not configured");
+    }
+    const decoded = jwt.verify(token, secret);
 
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {

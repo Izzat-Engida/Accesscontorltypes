@@ -1,8 +1,7 @@
-import NextAuth from "next-auth";
-import { JWT } from "next-auth/jwt";
+import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
-  interface Session {
+  interface Session extends DefaultSession {
     user?: {
       id: string;
       name: string;
@@ -12,6 +11,8 @@ declare module "next-auth" {
       clearanceLevel: string;
       mfaEnabled?: boolean;
     };
+    accessToken?: string;
+    refreshToken?: string;
   }
 
   interface User {
@@ -22,6 +23,8 @@ declare module "next-auth" {
     department: string;
     clearanceLevel: string;
     mfaEnabled?: boolean;
+    accessToken?: string;
+    refreshToken?: string;
   }
 }
 
@@ -36,6 +39,8 @@ declare module "next-auth/jwt" {
       clearanceLevel: string;
       mfaEnabled?: boolean;
     };
+    accessToken?: string;
+    refreshToken?: string;
   }
 }
 

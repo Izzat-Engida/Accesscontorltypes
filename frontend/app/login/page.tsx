@@ -53,7 +53,11 @@ export default function LoginPage() {
         return;
       }
 
-      const userPayload = res.data.user;
+      const userPayload = {
+        ...res.data.user,
+        accessToken: res.data.accessToken,
+        refreshToken: res.data.refreshToken,
+      };
       const nextAuthResult = await signIn("credentials", {
         redirect: false,
         userJson: JSON.stringify(userPayload),
@@ -75,7 +79,7 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto grid max-w-5xl gap-8 pt-12 lg:grid-cols-2">
-      <div className="rounded-3xl border border-white/20 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 p-8 text-white shadow-2xl">
+      <div className="rounded-3xl border border-white/20 bg-linear-to-br from-slate-900 via-slate-800 to-blue-900 p-8 text-white shadow-2xl">
         <p className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs uppercase tracking-widest">
           Zero trust entry
         </p>
@@ -128,7 +132,7 @@ export default function LoginPage() {
             <input
               {...register("password")}
               type="password"
-              placeholder=""
+              placeholder="••••••••"
               className="mt-1 w-full rounded-2xl border border-slate-200 bg-white/70 p-3 text-base shadow-inner focus:border-slate-900 focus:outline-none"
               required
             />

@@ -6,6 +6,16 @@ import { toast } from "react-toastify";
 import { signIn } from "next-auth/react";
 import api from "../api";
 
+const extractErrorMessage = (err: unknown, fallback: string) => {
+  if (err && typeof err === "object" && "response" in err) {
+    const response = (err as { response?: { data?: { message?: string } } }).response;
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+  return fallback;
+};
+
 export default function MFAPage() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,15 +36,19 @@ export default function MFAPage() {
       toast.success(res.data.message || "OTP verified successfully!");
       const nextAuthResult = await signIn("credentials", {
         redirect: false,
-        userJson: JSON.stringify(res.data.user),
+        userJson: JSON.stringify({
+          ...res.data.user,
+          accessToken: res.data.accessToken,
+          refreshToken: res.data.refreshToken,
+        }),
       });
       if (nextAuthResult?.error) {
         toast.error(nextAuthResult.error || "Unable to start session");
         return;
       }
       router.push("/profile");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "OTP verification failed");
+    } catch (err: unknown) {
+      toast.error(extractErrorMessage(err, "OTP verification failed"));
     } finally {
       setLoading(false);
     }
@@ -66,7 +80,7 @@ export default function MFAPage() {
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-slate-500">
-        Didnt receive the code? Request another from the login page after 60 seconds.
+        Didn’t receive the code? Request another from the login page after 60 seconds.
       </p>
     </div>
   );

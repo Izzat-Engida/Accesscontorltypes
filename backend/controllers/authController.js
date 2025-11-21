@@ -30,16 +30,15 @@ const formatSafeUser = (user) => ({
 });
 
 const issueVerificationEmail = async (user, ip) => {
-  const verificationToken = crypto.randomBytes(32).toString("hex");
-  user.emailVerificationTokenHash = await bcrypt.hash(verificationToken, 12);
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  user.emailVerificationTokenHash = await bcrypt.hash(code, 12);
   user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
   await user.save();
 
-  const link = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&id=${user._id}`;
   await sendEmail(
     user.email,
     "Verify your account",
-    `Welcome to the system!\nPlease verify your email using this link: ${link}\nThis link expires in 24 hours.`
+    `Your verification code is ${code}.\nIt expires in 24 hours.\n\nIf you did not request this, please ignore the email.`
   );
   await logaudit({
     userId: user._id,
@@ -72,16 +71,17 @@ const createAndStoreRefreshToken = async (user, res) => {
   user.refreshTokenHash = hashed;
   await user.save();
 
-  // store refresh token in httpOnly cookie
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: parseInt(process.env.REFRESH_TOKEN_MAX_AGE || `${7 * 24 * 60 * 60 * 1000}`, 10), // default 7 days
+    maxAge: parseInt(process.env.REFRESH_TOKEN_MAX_AGE || `${7 * 24 * 60 * 60 * 1000}`, 10),
   });
+
+  return refreshToken;
 };
 
-// ------------------ REGISTER ------------------
+
 const register = asyncHandler(async (req, res) => {
   const { name, email, password, department,recaptachaToken } = req.body;
 
@@ -119,7 +119,7 @@ const register = asyncHandler(async (req, res) => {
   });
 });
 
-// ------------------ LOGIN (password check + MAY issue OTP) ------------------
+
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ message: "Email and password required" });
@@ -143,7 +143,7 @@ const login = asyncHandler(async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  // reset failed attempts
+  
   user.failedAttempts = 0;
   user.accountLocked = false;
   user.lockUntil = null;
@@ -187,23 +187,27 @@ const login = asyncHandler(async (req, res) => {
     return res.status(200).json({ message: "MFA required. OTP sent to email.", mfaRequired: true, userId: user._id });
   }
 
-  // No MFA -> issue tokens
+
   await user.save();
 
   const accessToken = generateAccessToken(user);
-  await createAndStoreRefreshToken(user, res);
+  const refreshToken = await createAndStoreRefreshToken(user, res);
 
-  // cookie for access token (short-lived) OR send in body - here we use cookie
   res.cookie("token", accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: parseInt(process.env.ACCESS_TOKEN_MAX_AGE || `${15 * 60 * 1000}`, 10), // default 15m
+    maxAge: parseInt(process.env.ACCESS_TOKEN_MAX_AGE || `${15 * 60 * 1000}`, 10),
   });
 
   await logaudit({ userId: user._id, action: "Login success", ip: req.ip, userAgent: req.get("User-Agent"), status: "success" });
 
-  res.json({ message: "Login successful", user: formatSafeUser(user) });
+  res.json({
+    message: "Login successful",
+    user: formatSafeUser(user),
+    accessToken,
+    refreshToken,
+  });
 });
 
 // ------------------ VERIFY OTP (for MFA) ------------------
@@ -227,9 +231,8 @@ const verifyOtp = asyncHandler(async (req, res) => {
   user.otpVerified = true;
   await user.save();
 
-  // issue tokens
   const accessToken = generateAccessToken(user);
-  await createAndStoreRefreshToken(user, res);
+  const refreshToken = await createAndStoreRefreshToken(user, res);
 
   res.cookie("token", accessToken, {
     httpOnly: true,
@@ -240,7 +243,12 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
   await logaudit({ userId: user._id, action: "OTP verified & tokens issued", ip: req.ip, status: "success" });
 
-  res.json({ message: "Login successful", user: formatSafeUser(user) });
+  res.json({
+    message: "Login successful",
+    user: formatSafeUser(user),
+    accessToken,
+    refreshToken,
+  });
 });
 
 // ------------------ ENABLE MFA (user must be authenticated) ------------------
@@ -283,8 +291,7 @@ const refreshToken = asyncHandler(async (req, res) => {
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || "15m" }
   );
 
-  
-  await createAndStoreRefreshToken(matchedUser, res);
+  const refreshToken = await createAndStoreRefreshToken(matchedUser, res);
 
   res.cookie("token", accessToken, {
     httpOnly: true,
@@ -295,7 +302,11 @@ const refreshToken = asyncHandler(async (req, res) => {
 
   await logaudit({ userId: matchedUser._id, action: "Refresh token used", ip: req.ip, status: "success" });
 
-  res.json({ message: "Token refreshed" });
+  res.json({
+    message: "Token refreshed",
+    accessToken,
+    refreshToken,
+  });
 });
 
 // ------------------ LOGOUT ------------------
@@ -365,19 +376,19 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 const verifyEmail = asyncHandler(async (req, res) => {
-  const { userId, token } = req.body;
-  if (!userId || !token) return res.status(400).json({ message: "Missing fields" });
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ message: "Email and code are required" });
 
-  const user = await User.findById(userId);
+  const user = await User.findOne({ email: email.toLowerCase() });
   if (!user || !user.emailVerificationTokenHash) {
-    return res.status(400).json({ message: "Invalid or expired token" });
+    return res.status(400).json({ message: "Invalid or expired code" });
   }
   if (user.emailVerificationExpires && user.emailVerificationExpires < new Date()) {
-    return res.status(400).json({ message: "Verification token expired" });
+    return res.status(400).json({ message: "Verification code expired" });
   }
 
-  const match = await bcrypt.compare(token, user.emailVerificationTokenHash);
-  if (!match) return res.status(400).json({ message: "Invalid verification token" });
+  const match = await bcrypt.compare(code, user.emailVerificationTokenHash);
+  if (!match) return res.status(400).json({ message: "Invalid verification code" });
 
   user.emailVerified = true;
   user.emailVerificationTokenHash = null;
