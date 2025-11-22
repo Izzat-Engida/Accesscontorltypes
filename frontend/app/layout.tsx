@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
 import AppSessionProvider from "./session-provider";
+import Navigation from "./components/Navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Secure Access Control Suite",
-  description: "University project demonstrating MAC/DAC/RBAC/ABAC/RuBAC with MFA and auditing",
+  title: "SecurePortal - Enterprise Access Control",
+  description: "Enterprise-grade access control system with advanced security features",
 };
 
 export default function RootLayout({
@@ -28,41 +28,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 min-h-screen`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 min-h-screen`}>
         <AppSessionProvider>
-          <header className="bg-slate-900 text-white">
-            <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-              <div className="text-lg font-semibold">AASTU Security Portal</div>
-              <nav className="flex flex-wrap gap-4 text-sm">
-                <Link href="/" className="hover:underline">
-                  Home
-                </Link>
-                <Link href="/login" className="hover:underline">
-                  Login
-                </Link>
-                <Link href="/register" className="hover:underline">
-                  Register
-                </Link>
-                <Link href="/profile" className="hover:underline">
-                  Profile
-                </Link>
-                <Link href="/documents" className="hover:underline">
-                  Documents
-                </Link>
-                <Link href="/leave" className="hover:underline">
-                  Leave
-                </Link>
-                <Link href="/admin/dashboard" className="hover:underline">
-                  Admin
-                </Link>
-                <Link href="/verify-email" className="hover:underline">
-                  Verify Email
-                </Link>
-              </nav>
+          <Navigation />
+          <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+          <footer className="mt-16 border-t border-slate-200 bg-white/50 py-8">
+            <div className="mx-auto max-w-7xl px-6 text-center text-sm text-slate-600">
+              <p>&copy; {new Date().getFullYear()} SecurePortal. All rights reserved.</p>
             </div>
-          </header>
-          <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
-          <ToastContainer position="top-right" theme="dark" />
+          </footer>
+          <ToastContainer position="top-right" theme="light" />
         </AppSessionProvider>
       </body>
     </html>

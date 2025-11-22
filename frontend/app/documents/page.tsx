@@ -104,34 +104,44 @@ export default function DocumentsPage() {
   };
 
   return (
-    <div className="space-y-8 p-6">
-      <section className="rounded-xl bg-white p-6 shadow">
-        <h1 className="text-2xl font-semibold text-slate-900">Documents workspace</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Demonstrates MAC classification, DAC sharing, and end-to-end auditing for every action.
-        </p>
+    <div className="space-y-8">
+      <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Document Management</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Create, classify, and share documents with advanced access controls
+            </p>
+          </div>
+        </div>
       </section>
 
-      <section className="rounded-xl bg-white p-6 shadow">
-        <h2 className="text-lg font-semibold text-slate-900">Create classified document</h2>
-        <form onSubmit={handleCreate} className="mt-4 grid gap-4 md:grid-cols-2">
+      <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 className="mb-6 text-xl font-semibold text-slate-900">Create New Document</h2>
+        <form onSubmit={handleCreate} className="grid gap-6 md:grid-cols-2">
           <label className="text-sm font-medium text-slate-700">
-            Title
+            Document Title
             <input
               value={newDoc.title}
               onChange={(e) => setNewDoc({ ...newDoc, title: e.target.value })}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="Enter document title"
               required
             />
           </label>
           <label className="text-sm font-medium text-slate-700">
-            Classification
+            Classification Level
             <select
               value={newDoc.sensitivityLevel}
               onChange={(e) =>
                 setNewDoc({ ...newDoc, sensitivityLevel: e.target.value as DocumentRecord["sensitivityLevel"] })
               }
-              className="mt-1 w-full rounded border border-slate-300 p-2"
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
               {levels.map((level) => (
                 <option key={level} value={level}>
@@ -145,8 +155,9 @@ export default function DocumentsPage() {
             <textarea
               value={newDoc.content}
               onChange={(e) => setNewDoc({ ...newDoc, content: e.target.value })}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
-              rows={4}
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              rows={6}
+              placeholder="Enter document content..."
               required
             />
           </label>
@@ -154,104 +165,119 @@ export default function DocumentsPage() {
             <button
               type="submit"
               disabled={creating}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-60 disabled:hover:scale-100"
             >
-              {creating ? "Classifying..." : "Create document"}
+              {creating ? "Creating..." : "Create Document"}
             </button>
           </div>
         </form>
       </section>
 
-      <section className="rounded-xl bg-white p-6 shadow">
-        <h2 className="text-lg font-semibold text-slate-900">Accessible documents</h2>
+      <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h2 className="mb-6 text-xl font-semibold text-slate-900">Your Documents</h2>
         {loading ? (
-          <p className="mt-4 text-sm text-slate-600">Loading documents...</p>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"></div>
+              <p className="mt-4 text-sm text-slate-600">Loading documents...</p>
+            </div>
+          </div>
         ) : docs.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-600">No documents matched your clearance.</p>
+          <div className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-12 text-center">
+            <p className="text-slate-600">No documents available. Create your first document above.</p>
+          </div>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full table-auto border-collapse text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead>
-                <tr className="bg-slate-100 text-left">
-                  <th className="px-4 py-2">Title</th>
-                  <th className="px-4 py-2">Classification</th>
-                  <th className="px-4 py-2">Owner</th>
-                  <th className="px-4 py-2">Shared with</th>
-                  <th className="px-4 py-2">Actions</th>
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Title</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Classification</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Owner</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Shared With</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-200">
                 {docs.map((doc) => (
-                  <tr key={doc._id} className="border-t">
-                    <td className="px-4 py-2 font-semibold text-slate-900">{doc.title}</td>
-                    <td className="px-4 py-2">
-                      <span className="rounded bg-slate-900/10 px-2 py-1 text-xs font-semibold uppercase text-slate-900">
+                  <tr key={doc._id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-4">
+                      <div className="font-semibold text-slate-900">{doc.title}</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase text-blue-800">
                         {doc.sensitivityLevel}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-slate-600">{doc.owner?.name || "System"}</td>
-                    <td className="px-4 py-2 text-slate-600">
-                      {doc.sharedWith?.length
-                        ? doc.sharedWith.map((share) => (
-                            <div key={`${share.user?._id}-${share.permission}`} className="flex items-center justify-between">
-                              <span className="text-xs">
-                                {share.user?.name || "Unknown"} ({share.permission})
-                                {share.grantedBy && (
-                                  <span className="text-slate-400"> via {share.grantedBy.name}</span>
-                                )}
+                    <td className="px-4 py-4 text-sm text-slate-600">{doc.owner?.name || "System"}</td>
+                    <td className="px-4 py-4">
+                      {doc.sharedWith?.length ? (
+                        <div className="space-y-1">
+                          {doc.sharedWith.map((share) => (
+                            <div key={`${share.user?._id}-${share.permission}`} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-slate-600">
+                                {share.user?.name || "Unknown"} <span className="text-slate-400">({share.permission})</span>
                               </span>
                               <button
-                                className="text-xs text-red-600 hover:underline"
+                                className="rounded px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
                                 onClick={() => share.user?.email && handleRevoke(doc._id, share.user.email)}
                               >
-                                revoke
+                                Revoke
                               </button>
                             </div>
-                          ))
-                        : "—"}
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">Not shared</span>
+                      )}
                     </td>
-                    <td className="space-y-2 px-4 py-2">
-                      <Link href={`/documents/${doc._id}/view`} className="text-blue-600 underline">
-                        View
-                      </Link>
-                      <div className="rounded border border-slate-200 p-2">
-                        <input
-                          type="email"
-                          placeholder="Email"
-                          value={shareForms[doc._id]?.email || ""}
-                          onChange={(e) =>
-                            setShareForms((prev) => ({
-                              ...prev,
-                              [doc._id]: {
-                                ...(prev[doc._id] || { permission: "read" }),
-                                email: e.target.value,
-                              },
-                            }))
-                          }
-                          className="mb-2 w-full rounded border border-slate-200 p-1 text-xs"
-                        />
-                        <select
-                          value={shareForms[doc._id]?.permission || "read"}
-                          onChange={(e) =>
-                            setShareForms((prev) => ({
-                              ...prev,
-                              [doc._id]: {
-                                ...(prev[doc._id] || { email: "" }),
-                                permission: e.target.value as Permission,
-                              },
-                            }))
-                          }
-                          className="mb-2 w-full rounded border border-slate-200 p-1 text-xs"
+                    <td className="px-4 py-4">
+                      <div className="flex flex-col gap-2">
+                        <Link
+                          href={`/documents/${doc._id}/view`}
+                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
                         >
-                          <option value="read">Read</option>
-                          <option value="write">Write</option>
-                        </select>
-                        <button
-                          onClick={() => handleShare(doc._id)}
-                          className="w-full rounded bg-slate-900 px-2 py-1 text-xs font-semibold text-white"
-                        >
-                          Share
-                        </button>
+                          View
+                        </Link>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                          <input
+                            type="email"
+                            placeholder="Enter email"
+                            value={shareForms[doc._id]?.email || ""}
+                            onChange={(e) =>
+                              setShareForms((prev) => ({
+                                ...prev,
+                                [doc._id]: {
+                                  ...(prev[doc._id] || { permission: "read" }),
+                                  email: e.target.value,
+                                },
+                              }))
+                            }
+                            className="mb-2 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                          />
+                          <select
+                            value={shareForms[doc._id]?.permission || "read"}
+                            onChange={(e) =>
+                              setShareForms((prev) => ({
+                                ...prev,
+                                [doc._id]: {
+                                  ...(prev[doc._id] || { email: "" }),
+                                  permission: e.target.value as Permission,
+                                },
+                              }))
+                            }
+                            className="mb-2 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="read">Read</option>
+                            <option value="write">Write</option>
+                          </select>
+                          <button
+                            onClick={() => handleShare(doc._id)}
+                            className="w-full rounded bg-slate-900 px-2 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+                          >
+                            Share
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
