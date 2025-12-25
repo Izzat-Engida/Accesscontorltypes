@@ -170,7 +170,7 @@ export default function ProfilePage() {
               Resend verification
             </button>
           )}
-          {!user.mfaEnabled && (
+          {!user.mfaEnabled && user.role=='Admin' && (
             <button
               onClick={handleEnableMfa}
               className="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"

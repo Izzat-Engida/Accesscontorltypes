@@ -15,7 +15,7 @@ app.use(cors({
     origin:process.env.FRONTEND_URL || "http://localhost:3000",
     credentials:true,
 }));
-app.use(cookieParser());
+app.use(cookieParser())
 
 app.use(express.urlencoded({extended:false}));
 app.use("/api/auth",require("./routes/auth"));

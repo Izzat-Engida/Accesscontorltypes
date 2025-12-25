@@ -1,0 +1,5 @@
+
+// Tailwind config moved to ESM: use `tailwind.config.mjs` instead.
+// Reason: project uses .mjs (e.g., postcss.config.mjs). Keep this placeholder to avoid tooling confusion.
+
+module.exports = {};

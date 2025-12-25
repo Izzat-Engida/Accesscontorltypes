@@ -234,7 +234,7 @@ export default function DocumentsPage() {
                     <td className="px-4 py-4">
                       <div className="flex flex-col gap-2">
                         <Link
-                          href={`/documents/${doc._id}/view`}
+                          href={`/documents/${doc._id}`}
                           className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
                         >
                           View

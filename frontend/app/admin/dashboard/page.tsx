@@ -87,7 +87,7 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-6 p-6">
       <header className="rounded-xl bg-white p-6 shadow">
-        <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Account management</h1>
         <p className="mt-2 text-sm text-slate-600">
           Manage roles, departments, clearances, MFA, lockouts, and employment state. Every action is logged by the backend
           admin APIs.
