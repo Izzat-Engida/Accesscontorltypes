@@ -19,25 +19,18 @@ router.get("/profile", protect, async (req, res) => {
   res.json({ message: "User profile fetched", user });
 });
 
-// // -------------------- ADMIN PANEL (RBAC) --------------------
-// router.get("/admin", protect, allowRoles("Admin"), async (req, res) => {
-//   const users = await User.find().select("-password -refreshTokenHash");
-//   res.json({ message: "Admin panel", users });
-// });
 
-// // -------------------- HR & FINANCE --------------------
 router.get(
   "/hr-finance",
   protect,
   allowRoles("HR_Manager", "Finance_Manager", "Admin"),
   async (req, res) => {
-    // Example: fetch payroll records
     const payrollRecords = await Document.find({ type: "payroll" });
     res.json({ message: "HR & Finance data", payrollRecords });
   }
 );
 
-// -------------------- CONFIDENTIAL DATA (MAC) --------------------
+
 router.get("/confidential", protect, macProtect("Confidential"), async (req, res) => {
   const reports = await Document.find({ sensitivityLevel: "Confidential" }).lean();
   res.json({ message: "Confidential data fetched", reports });
@@ -45,7 +38,7 @@ router.get("/confidential", protect, macProtect("Confidential"), async (req, res
 
 const classificationLevels = ["Public", "Internal", "Confidential", "TopSecret"];
 
-// -------------------- DOCUMENT ACCESS (MAC + DAC + RBAC) --------------------
+
 router.get("/documents", protect, async (req, res) => {
   const allowedLevels = classificationLevels.filter(
     (level) => compareClearance(req.user.clearanceLevel, level) >= 0
@@ -105,7 +98,7 @@ router.put("/documents/:id", protect, dacProtect("write"), async (req, res) => {
   res.json({ message: "Document updated", document: doc });
 });
 
-// -------------------- ABAC POLICY ACTION --------------------
+
 router.post(
   "/reports/:id/approve",
   protect,
@@ -123,7 +116,7 @@ router.post(
   }
 );
 
-// -------------------- CREATE DOCUMENT --------------------
+
 router.post("/documents", protect, allowRoles("Admin", "Manager"), async (req, res) => {
   const { title, content, type, sensitivityLevel } = req.body;
 
@@ -157,7 +150,7 @@ router.post("/documents/:id/share", protect, dacProtect("write"), async (req, re
   const doc = await Document.findById(req.params.id);
   if (!doc) return res.status(404).json({ message: "Document not found" });
 
-  // Find user by email
+
   const targetUser = await User.findOne({ email: email.toLowerCase().trim() });
   if (!targetUser) {
     return res.status(404).json({ message: "User not found with this email" });
@@ -220,7 +213,7 @@ router.post("/documents/:id/revoke", protect, dacProtect("write"), async (req, r
   res.json({ message: "Access revoked", document: doc });
 });
 
-// -------------------- CLASSIFICATION MANAGEMENT --------------------
+
 router.patch(
   "/documents/:id/classification",
   protect,
@@ -249,23 +242,58 @@ router.patch(
   }
 );
 
-// -------------------- RULE-BASED EXAMPLE --------------------
 router.post(
   "/leave/:id/approve",
   protect,
   allowRoles("HR_Manager", "Admin"),
   rubac("leave_request", "approve"),
   async (req, res) => {
-    await logaudit({
-      userId: req.user._id,
-      action: "Leave approved",
-      resource: "LeaveRequest",
-      resourceId: req.params.id,
-      ip: req.ip,
-      status: "success",
-    });
-    res.json({ message: "Leave approved via RuBAC" });
+    try {
+      const leave = await LeaveRequest.findById(req.params.id);
+      if (!leave) {
+        return res.status(404).json({ message: "Leave request not found" });
+      }
+
+      if (leave.status !== "pending") {
+        return res.status(400).json({ message: "Leave already processed" });
+      }
+
+      leave.status = "approved";
+      leave.approvedBy = req.user._id;
+      leave.approvedAt = new Date();
+      leave.justification = req.body.justification || leave.justification;
+      await leave.save();
+
+      await logaudit({
+        userId: req.user._id,
+        action: "Leave approved via RuBAC",
+        resource: "LeaveRequest",
+        resourceId: req.params.id,
+        ip: req.ip,
+        status: "success",
+        details: `Approved ${leave.days} days (${leave.type}) - Justification: ${req.body.justification || "None"}`,
+        category: "permission",
+        severity: "low",
+      });
+
+      res.json({ 
+        message: "Leave approved successfully (RuBAC + policies passed)",
+        leave 
+      });
+    } catch (err) {
+      console.error(err);
+      await logaudit({
+        userId: req.user?._id,
+        action: "Leave approval failed",
+        resource: "LeaveRequest",
+        resourceId: req.params.id,
+        ip: req.ip,
+        status: "failed",
+        details: err.message,
+        severity: "medium",
+      });
+      res.status(500).json({ message: "Server error during approval" });
+    }
   }
 );
-
 module.exports = router;

@@ -12,9 +12,16 @@ export default function Navigation() {
     await signOut({ redirect: true, callbackUrl: "/login" });
   };
 
-  const isActive = (path: string) => pathname.startsWith(path); // Better for nested routes
+  const isActive = (path: string) => {
+    if (path === "/") return pathname === "/";
+    return pathname.startsWith(path);
+  };
 
-  const isAdmin = session?.user?.role === "Admin";
+  const role = session?.user?.role || "";
+
+  const isAdmin = role === "Admin";
+  const isHRorManager = ["HR_Manager", "Manager", "Admin"].includes(role);
+  const isEmployee = role === "Employee" || role === "Manager"; // Managers can also request leave
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-lg shadow-sm">
@@ -30,7 +37,7 @@ export default function Navigation() {
           <Link
             href="/"
             className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              isActive("/") && pathname === "/" ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
+              isActive("/") ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
             }`}
           >
             Home
@@ -46,6 +53,7 @@ export default function Navigation() {
               >
                 Profile
               </Link>
+
               <Link
                 href="/documents"
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
@@ -54,16 +62,32 @@ export default function Navigation() {
               >
                 Documents
               </Link>
-              <Link
-                href="/leave"
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  isActive("/leave") ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                Leave
-              </Link>
 
-              {/* Admin-only Links */}
+              {/* Leave Request — for Employees & Managers */}
+              {isEmployee && (
+                <Link
+                  href="/leave/request"
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    isActive("/leave/request") ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  Request Leave
+                </Link>
+              )}
+
+              {/* Leave Approvals — for HR, Manager, Admin */}
+              {isHRorManager && (
+                <Link
+                  href="/leave/approvals"
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    isActive("/leave/approvals") ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  Approve Leaves
+                </Link>
+              )}
+
+              {/* Admin Only Links */}
               {isAdmin && (
                 <>
                   <Link
@@ -85,12 +109,16 @@ export default function Navigation() {
                 </>
               )}
 
-              <div className="mx-2 h-6 w-px bg-slate-300"></div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-slate-600">{session.user?.name}</span>
+              <div className="mx-4 h-6 w-px bg-slate-300"></div>
+
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-slate-700">
+                  {session.user?.name || session.user?.email}
+                  <span className="ml-2 text-xs text-slate-500">({role})</span>
+                </span>
                 <button
                   onClick={handleLogout}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
                 >
                   Logout
                 </button>
@@ -108,7 +136,7 @@ export default function Navigation() {
               </Link>
               <Link
                 href="/register"
-                className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:from-blue-700 hover:to-indigo-700"
+                className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:from-blue-700 hover:to-indigo-700"
               >
                 Sign Up
               </Link>

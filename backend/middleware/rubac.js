@@ -6,11 +6,16 @@ const rubac = (resource, action) =>
   asyncHandler(async (req, res, next) => {
     const context = buildContext(req);
     const { decision, rule } = await evaluateRules(resource, action, context);
-
-    if (decision === "not_applicable" || decision === "allow"|| req.user?.role === "Admin") {
+    
+    if (req.user?.role === "Admin") {
       return next();
     }
 
+    if (decision === "allow" || decision === "not_applicable") {
+      return next();
+    }
+
+ 
     await logaudit({
       userId: req.user?._id || null,
       action: "Rule denied access",
@@ -18,17 +23,21 @@ const rubac = (resource, action) =>
       resourceId: context.resourceId || null,
       ip: context.ip,
       status: "failed",
-      details: `RuBAC rule ${rule?.name} blocked action ${action}`,
+      details: `RuBAC rule "${rule?.name || "unknown"}" blocked action "${action}"`,
       category: "security",
       severity: "medium",
     });
-    return res.status(403).json({ message: "Access denied by rule", rule: rule?.name });
+
+    return res.status(403).json({
+      message: "Access denied by security policy",
+      rule: rule?.name || "unknown",
+    });
   });
 
 function buildContext(req) {
   return {
     user: req.user,
-    ip: req.ip || req.connection?.remoteAddress,
+    ip: req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress,
     location: req.headers["x-client-location"],
     time: new Date(),
     resourceId: req.params?.id,
@@ -37,4 +46,3 @@ function buildContext(req) {
 }
 
 module.exports = rubac;
-
